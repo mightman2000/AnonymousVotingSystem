@@ -4,7 +4,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.Random;
 
 public class Generator {
-    //MyFrame frame = new MyFrame();
 
     public String RandomKeyGenerator() {
 

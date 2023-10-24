@@ -37,7 +37,7 @@ public class MyFrame extends JFrame {
     Panel voteLeftPanel = new Panel();
 
     JTextField inputKey = new JTextField("Please input your voting key");
-    JTextField secretKey = new JTextField("Please create your secret key");
+    JTextField secretKeyTextField = new JTextField("Please create your secret key");
     JButton voteBtn = new JButton("Vote");
     String[] candidates ={"1.Faraona", "2.Dickata" , "3.Dankata", "4.Tsareveca"};
     JComboBox<String> comboBox = new JComboBox<String>(candidates);
@@ -82,6 +82,17 @@ public class MyFrame extends JFrame {
             return count > 0;
     }
 
+    boolean isVoted(String getKey, PreparedStatement state) throws SQLException {
+        String sql = "SELECT is_used from keycreation where votingkey = ?";
+        state = conn.prepareStatement(sql);
+        state.setString(1, getKey);
+        result = state.executeQuery();
+        result.next();
+        boolean isTrueOrFalse = result.getBoolean(1);
+        return isTrueOrFalse;
+    }
+
+
     public MyFrame(){
 
         this.setDefaultCloseOperation(EXIT_ON_CLOSE);
@@ -112,15 +123,16 @@ public class MyFrame extends JFrame {
 
         welcomeDownPanel.add(inputEgnTextField);
 
+
         welcomeDownPanel.add(generateKeyBtn);
 
         //vote panel
 
         // left panel
         votePanel.add(voteLeftPanel);
-        voteLeftPanel.setLayout(new GridLayout(2,1));
+        voteLeftPanel.setLayout(new GridLayout(3,1));
         voteLeftPanel.add(inputKey);
-        //voteLeftPanel.add(secretKey);
+        voteLeftPanel.add(secretKeyTextField);
         voteLeftPanel.add(voteBtn);
         voteBtn.addActionListener(new vote());
 
@@ -184,44 +196,65 @@ public class MyFrame extends JFrame {
         @Override
         public void actionPerformed(ActionEvent e) {
 
-            String secretKey = "MySecretKey12345";
+
+            String secretKey;
 
             conn = DBConnection.getConnection();
             String candidateChoice = comboBox.getSelectedItem().toString();
 
             String votingKey = inputKey.getText();
 
-                try {
-                    if (isVotingKeyValid(votingKey, state)) {
 
-                        String getKey = inputKey.getText();
-                        String encryptedKey = encryption.encrypt(getKey, secretKey);
+            try {
+                if (isVoted(votingKey, state)) {
 
-                        if(isEncryptedKeyValid(encryptedKey,state)){
-                            JOptionPane.showMessageDialog(null, "You already voted", "Error", JOptionPane.INFORMATION_MESSAGE);
+                    JOptionPane.showMessageDialog(null, "You already voted", "Error", JOptionPane.INFORMATION_MESSAGE);
+
+                } else {
+
+                    try {
+                        if (isVotingKeyValid(votingKey, state)) {
+
+                            secretKey = secretKeyTextField.getText(); // todo proverka dali e 16 simvola
+                            String getKey = inputKey.getText();
+                            String encryptedKey = encryption.encrypt(getKey, secretKey);
+
+                            if (isEncryptedKeyValid(encryptedKey, state)) {
+                                JOptionPane.showMessageDialog(null, "You already voted", "Error", JOptionPane.INFORMATION_MESSAGE);
+                            }
+
+                            String sql = "insert into reference(encryptedKey,candidateChoice) values(?,?)";
+                            try {
+                                state = conn.prepareStatement(sql);
+                                state.setString(1, encryptedKey);
+                                state.setString(2, candidateChoice);
+
+                                state.execute();
+
+                                String sql2 = "update keycreation set is_used = ? where votingkey = ?";
+                                state = conn.prepareStatement(sql2);
+                                state.setBoolean(1, true);
+                                state.setString(2, getKey);
+
+                                state.execute();
+
+                                JOptionPane.showMessageDialog(null, "Your encrypted key is: " + encryptedKey, "Your encrypted key", JOptionPane.INFORMATION_MESSAGE);
+
+                            } catch (SQLException e1) {
+                                e1.printStackTrace();
+                            }
+                        } else {
+                            JOptionPane.showMessageDialog(null, "Invalid voting key", "Error", JOptionPane.INFORMATION_MESSAGE);
                         }
-
-                        String sql = "insert into reference(encryptedKey,candidateChoice) values(?,?)";
-                        try {
-                            state = conn.prepareStatement(sql);
-                            state.setString(1, encryptedKey);
-                            state.setString(2, candidateChoice);
-
-                            state.execute();
-
-                            JOptionPane.showMessageDialog(null, "Your encrypted key is: " + encryptedKey, "Your encrypted key", JOptionPane.INFORMATION_MESSAGE);
-
-                        } catch (SQLException e1) {
-                            e1.printStackTrace();
-                        }
-                    } else {
-                        JOptionPane.showMessageDialog(null, "Invalid voting key", "Error", JOptionPane.INFORMATION_MESSAGE);
+                    } catch (SQLException ex) {
+                        throw new RuntimeException(ex);
+                    } catch (Exception ex) {
+                        throw new RuntimeException(ex);
                     }
-                } catch (SQLException ex) {
-                    throw new RuntimeException(ex);
-                } catch (Exception ex) {
-                    throw new RuntimeException(ex);
                 }
+            } catch (SQLException ex) {
+                throw new RuntimeException(ex);
+            }
         }
     }
 
